@@ -14,6 +14,7 @@ struct Position {
     int col = 0;
 
     bool operator==(Position rhs) const;
+    bool operator!=(Position rhs) const;
     bool operator<(Position rhs) const;
 
     bool IsValid() const;
@@ -33,13 +34,24 @@ struct Size {
     bool operator==(Size rhs) const;
 };
 
+// Переопределение специализации шаблона std::hash для Position
+namespace std {
+    template<>
+    struct hash<Position> {
+        size_t operator()(const Position& p) const noexcept {
+            return (static_cast<uint64_t>(static_cast<uint32_t>(p.row)) << 32)
+                ^ static_cast<uint64_t>(static_cast<uint32_t>(p.col));
+        }
+    };
+} // namespace std
+
 // Описывает ошибки, которые могут возникнуть при вычислении формулы.
 class FormulaError {
 public:
     enum class Category {
         Ref,    // ссылка на ячейку с некорректной позицией
         Value,  // ячейка не может быть трактована как число
-        Div0,  // в результате вычисления возникло деление на ноль
+        Arithmetic,  // некорректная арифметическая операция
     };
 
     FormulaError(Category category);
@@ -54,7 +66,7 @@ private:
     Category category_;
 };
 
-std::ostream& operator<<(std::ostream& output, FormulaError fe);
+std::ostream& operator<<(std::ostream& output, const FormulaError& fe);
 
 // Исключение, выбрасываемое при попытке передать в метод некорректную позицию
 class InvalidPositionException : public std::out_of_range {
@@ -88,10 +100,20 @@ public:
     // В случае текстовой ячейки это её текст (без экранирующих символов). В
     // случае формулы - числовое значение формулы или сообщение об ошибке.
     virtual Value GetValue() const = 0;
+
+    virtual void Set(std::string text) = 0;
+
     // Возвращает внутренний текст ячейки, как если бы мы начали её
     // редактирование. В случае текстовой ячейки это её текст (возможно,
     // содержащий экранирующие символы). В случае формулы - её выражение.
     virtual std::string GetText() const = 0;
+
+    // Указывает зависимость ячейки от другой
+    virtual void AddDependence(const Position pos) = 0;
+
+    virtual void RemoveDependence(const Position pos) = 0;
+
+    virtual void ClearCache() const = 0;
 
     // Возвращает список ячеек, которые непосредственно задействованы в данной
     // формуле. Список отсортирован по возрастанию и не содержит повторяющихся
@@ -144,6 +166,12 @@ public:
     virtual void PrintValues(std::ostream& output) const = 0;
     virtual void PrintTexts(std::ostream& output) const = 0;
 };
+// Алгоритм поиска циклических зависимостей
+bool DFS(const Position& start,
+    const Position& cur,
+    int depth,
+    std::vector<Position>& path,
+    const SheetInterface& sheet);
 
 // Создаёт готовую к работе пустую таблицу.
 std::unique_ptr<SheetInterface> CreateSheet();

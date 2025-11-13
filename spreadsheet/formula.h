@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "FormulaAST.h"
 
 #include <memory>
 #include <vector>
@@ -35,6 +36,22 @@ public:
     // ячеек.
     virtual std::vector<Position> GetReferencedCells() const = 0;
 };
+
+namespace {
+    class Formula : public FormulaInterface {
+    public:
+        explicit Formula(std::string expression);
+
+        Value Evaluate(const SheetInterface& sheet) const override;
+
+        std::string GetExpression() const override;
+
+        std::vector<Position> GetReferencedCells() const override;
+
+    private:
+        FormulaAST ast_;
+    };
+}
 
 // Парсит переданное выражение и возвращает объект формулы.
 // Бросает FormulaException в случае, если формула синтаксически некорректна.
