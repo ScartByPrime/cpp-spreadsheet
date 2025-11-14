@@ -101,7 +101,9 @@ public:
     // случае формулы - числовое значение формулы или сообщение об ошибке.
     virtual Value GetValue() const = 0;
 
-    virtual void Set(std::string text) = 0;
+    virtual void Set(const Position pos, std::string text) = 0;
+
+    virtual void Clear(const Position pos) = 0;
 
     // Возвращает внутренний текст ячейки, как если бы мы начали её
     // редактирование. В случае текстовой ячейки это её текст (возможно,

@@ -9,23 +9,19 @@
 
 class Cell : public CellInterface {
 public:
-    Cell(Sheet& sheet, Position pos)
+    Cell(Sheet& sheet)
         : impl_(std::make_unique<EmptyImpl>()),
-        sheet_(sheet),
-        pos_(std::move(pos)){
+        sheet_(sheet){
     }
     ~Cell() = default;
 
-    void Set(std::string text) override;
+    void Set(const Position pos, std::string text) override;
 
-    void Clear();
+    void Clear(const Position pos) override;
 
-    Value GetValue() const override {
-        return impl_->GetValue();
-    }
-    std::vector<Position> GetReferencedCells() const override {
-        return references_;
-    }
+    Value GetValue() const override;
+
+    std::vector<Position> GetReferencedCells() const override;
 
     void AddDependence(const Position pos) override;
 
@@ -33,9 +29,7 @@ public:
 
     void ClearCache() const override;
 
-    std::string GetText() const override {
-        return impl_->GetText();
-    }
+    std::string GetText() const override;
 
 private:
     class Impl;
@@ -48,7 +42,6 @@ private:
     std::unordered_set<Position> dependents_; 
 
     Sheet& sheet_;
-    const Position pos_;
 
     class Impl {
     public:
@@ -61,37 +54,25 @@ private:
 
     class EmptyImpl : public Impl {
     public:
-        CellInterface::Value GetValue() const override {
-            return 0.0;
-        }
+        CellInterface::Value GetValue() const override;
 
-        std::string GetText() const override {
-            return std::string{};
-        }
+        std::string GetText() const override;
 
-        std::vector<Position> GetReferencedCells() const override { 
-            return {};
-        }
+        std::vector<Position> GetReferencedCells() const override;
 
         void InvalidateCache() const override {};
     };
 
     class TextImpl : public Impl {
     public:
-        TextImpl(std::string_view text_parsed, Sheet& sheet)
-            : value_(text_parsed), sheet_(sheet) {
-        }
+        TextImpl(std::string_view text_parsed, Sheet& sheet);
         // Геттер, интерпретирующий, если возможно, текстовое значение в качестве операнда,
         // если нет, либо в начале следует символ "'" - возвращает текст.
         CellInterface::Value GetValue() const override;
 
-        std::string GetText() const override {
-            return value_;
-        }
+        std::string GetText() const override;
 
-        std::vector<Position> GetReferencedCells() const override {
-            return {};
-        }
+        std::vector<Position> GetReferencedCells() const override;
 
         void InvalidateCache() const override {};
 
@@ -106,15 +87,11 @@ private:
 
         CellInterface::Value GetValue() const override;
 
-        std::string GetText() const override {
-            return '=' + formula_->GetExpression();
-        }
+        std::string GetText() const override;
 
         std::vector<Position> GetReferencedCells() const override;
 
-        void InvalidateCache() const override {
-            cache_.reset();
-        }
+        void InvalidateCache() const override;
 
     private:
         std::unique_ptr<FormulaInterface> formula_;

@@ -16,8 +16,8 @@ void Sheet::SetCell(Position pos, std::string text) {
         throw InvalidPositionException("INVALID POSITION");
     }
     try {
-        printable_.emplace(pos, std::make_unique<Cell>(*this, pos));
-        printable_.at(pos)->Set(std::move(text));
+        printable_.emplace(pos, std::make_unique<Cell>(*this));
+        printable_.at(pos)->Set(pos, std::move(text));
     }
     catch (const FormulaException&) {
         throw;
@@ -46,9 +46,9 @@ void Sheet::ClearCell(Position pos) {
         throw InvalidPositionException("INVALID POSITION");
     }
 
-    auto it = printable_.find(pos);
-    if (it != printable_.end()) {
-        printable_.erase(it);
+    if (printable_.count(pos)) {
+        printable_.at(pos)->Clear(pos);
+        printable_.erase(pos);
     }
 }
 

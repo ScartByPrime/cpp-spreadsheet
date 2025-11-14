@@ -56,16 +56,22 @@ void Cell::InvalidateDependentsCache() {
     }
 }
 
-void Cell::Set(std::string text) {
-    references_.clear();
-
+void Cell::Set(const Position pos, std::string text) {
     if (text.empty()) {
         impl_ = std::make_unique<EmptyImpl>();
+        references_.clear();
         return;
     }
 
     if (text[0] == '\'') {
-        impl_ = std::make_unique<TextImpl>(text, sheet_);
+        try {
+            auto temp = std::make_unique<TextImpl>(text, sheet_);
+            impl_ = std::move(temp);
+        }
+        catch (const std::exception&) {
+            throw;
+        }
+        references_.clear();
         return;
     }
      
@@ -74,7 +80,7 @@ void Cell::Set(std::string text) {
         // временный FormulaImpl, чтобы при броске ничего не менять
         try {
             auto temp = std::make_unique<FormulaImpl>(text, sheet_);
-            if (CircularDependencyCheck(pos_, temp->GetReferencedCells())) {
+            if (CircularDependencyCheck(pos, temp->GetReferencedCells())) {
                 throw CircularDependencyException("CILCULAR DEPENDENCY FOUND");
             }
             impl_ = std::move(temp);
@@ -86,12 +92,12 @@ void Cell::Set(std::string text) {
         
         references_ = impl_->GetReferencedCells();
 
-        for (const auto& pos : references_) {
-            const auto cell = sheet_.GetCell(pos);
+        for (const auto& p : references_) {
+            const auto cell = sheet_.GetCell(p);
             if (!cell) {
-                sheet_.SetCell(pos, "");
+                sheet_.SetCell(p, "");
             }
-            sheet_.GetCell(pos)->AddDependence(pos_);
+            sheet_.GetCell(p)->AddDependence(pos);
         }
 
         InvalidateDependentsCache();
@@ -100,7 +106,22 @@ void Cell::Set(std::string text) {
     }
 
     // ветка: только "=" не формула, а текст, или обычный текст без '=' в начале
-    impl_ = std::make_unique<TextImpl>(text, sheet_);
+    try {
+        auto temp = std::make_unique<TextImpl>(text, sheet_);
+        impl_ = std::move(temp);
+    }
+    catch (const std::exception&) {
+        throw;
+    }
+    references_.clear();
+}
+
+CellInterface::Value Cell::GetValue() const {
+    return impl_->GetValue();
+}
+
+std::vector<Position> Cell::GetReferencedCells() const {
+    return references_;
 }
 
 void Cell::AddDependence(const Position pos) {
@@ -115,8 +136,73 @@ void Cell::ClearCache() const {
     impl_->InvalidateCache();
 }
 
-void Cell::Clear() {
-    impl_.reset(new EmptyImpl());
+void Cell::Clear(const Position pos) {
+    Set(pos, "");
+}
+
+std::string Cell::GetText() const {
+    return impl_->GetText();
+}
+
+CellInterface::Value Cell::EmptyImpl::GetValue() const {
+    return 0.0;
+}
+
+std::string Cell::EmptyImpl::GetText() const {
+    return std::string{};
+}
+
+std::vector<Position> Cell::EmptyImpl::GetReferencedCells() const {
+    return {};
+}
+
+Cell::TextImpl::TextImpl(std::string_view text_parsed, Sheet& sheet)
+    : value_(text_parsed), sheet_(sheet) {
+}
+
+CellInterface::Value Cell::TextImpl::GetValue() const {
+    if (value_[0] == '\'') {
+        return value_.substr(1);
+    }
+
+    const std::string& s = value_;
+
+    size_t i = 0;
+    while (i < s.size() && std::isspace(static_cast<unsigned char>(s[i]))) ++i;
+    if (i == s.size()) {
+        return value_;
+    }
+
+    try {
+        size_t idx = 0;
+        double val = std::stod(s, &idx);
+
+        // Проверить, что далее идут только пробелы
+        size_t j = idx;
+        while (j < s.size() && std::isspace(static_cast<unsigned char>(s[j]))) ++j;
+        if (j != s.size()) {
+            // Остались непустые символы после числа - не число
+            return value_;
+        }
+
+        if (!std::isfinite(val)) {
+            return FormulaError(FormulaError::Category::Value);
+        }
+
+        return val;
+    }
+    catch (const std::exception&) {
+        // Любая ошибка парсинга - вернуть текст
+        return value_;
+    }
+}
+
+std::string Cell::TextImpl::GetText() const {
+    return value_;
+}
+
+std::vector<Position> Cell::TextImpl::GetReferencedCells() const {
+    return {};
 }
 
 Cell::FormulaImpl::FormulaImpl(std::string_view text_parsed, Sheet& sheet) try
@@ -155,43 +241,14 @@ CellInterface::Value Cell::FormulaImpl::GetValue() const {
     return FormulaError(FormulaError::Category::Value);
 }
 
+std::string Cell::FormulaImpl::GetText() const {
+    return '=' + formula_->GetExpression();
+}
+
 std::vector<Position> Cell::FormulaImpl::GetReferencedCells() const {
     return formula_->GetReferencedCells();
 }
 
-CellInterface::Value Cell::TextImpl::GetValue() const {
-    if (value_[0] == '\'') {
-        return value_.substr(1);
-    }
-
-    const std::string& s = value_;
-
-    size_t i = 0;
-    while (i < s.size() && std::isspace(static_cast<unsigned char>(s[i]))) ++i;
-    if (i == s.size()) {
-        return value_;
-    }
-
-    try {
-        size_t idx = 0;
-        double val = std::stod(s, &idx);
-
-        // Проверить, что далее идут только пробелы
-        size_t j = idx;
-        while (j < s.size() && std::isspace(static_cast<unsigned char>(s[j]))) ++j;
-        if (j != s.size()) {
-            // Остались непустые символы после числа - не число
-            return value_;
-        }
-
-        if (!std::isfinite(val)) {
-            return FormulaError(FormulaError::Category::Value);
-        }
-
-        return val;
-    }
-    catch (const std::exception&) {
-        // Любая ошибка парсинга - вернуть текст
-        return value_;
-    }
+void Cell::FormulaImpl::InvalidateCache() const {
+    cache_.reset();
 }
