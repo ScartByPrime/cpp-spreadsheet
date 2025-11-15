@@ -104,10 +104,10 @@ std::string_view FormulaError::ToString() const {
     return "";
 }
 
-bool DFS(const Position& start,
-    const Position& cur,
+bool DFS(const CellInterface* start,
+    const CellInterface* cur,
     int depth,
-    std::vector<Position>& path,
+    std::vector<const CellInterface*>& path,
     const SheetInterface& sheet) {
     // Если уже в пути — не углубляемся (предотвращаем прогулку по уже пройденному пути).
     if (std::find(path.begin(), path.end(), cur) != path.end()) {
@@ -116,13 +116,12 @@ bool DFS(const Position& start,
 
     path.push_back(cur);
 
-    const CellInterface* cell = sheet.GetCell(cur);
-    if (cell) {
-        const std::vector<Position> neigh = cell->GetReferencedCells();
+    if (cur) {
+        const std::vector<Position> neigh = cur->GetReferencedCells();
         for (const Position& next : neigh) {
             // Наткнулись на старт — определяем длину цикла:
             // depth + 1 т.к. добавляется ребро cur->start.
-            if (next == start) {
+            if (sheet.GetCell(next) == start) {
                 if (depth + 1 >= 3) { // учитываем только циклы длины >= 3
                     path.pop_back();
                     return true;
@@ -133,11 +132,11 @@ bool DFS(const Position& start,
             }
 
             // Если next уже в текущем пути — пропускаем, чтобы не зациклиться внутри пути
-            if (std::find(path.begin(), path.end(), next) != path.end()) {
+            if (std::find(path.begin(), path.end(), sheet.GetCell(next)) != path.end()) {
                 continue;
             }
 
-            if (DFS(start, next, depth + 1, path, sheet)) {
+            if (DFS(start, sheet.GetCell(next), depth + 1, path, sheet)) {
                 path.pop_back();
                 return true;
             }

@@ -7,24 +7,25 @@
 #include <optional>
 #include <queue>
 
-bool Cell::CircularDependencyCheck(const Position& start,
+bool Cell::CircularDependencyCheck(const Cell* start,
     const std::vector<Position>& references) const {
     // Самоссылка считается циклом
     for (const Position& ref : references) {
-        if (ref == start) {
+        if (sheet_.GetCell(ref) == start) {
             return true;
         }
     }
 
-    std::vector<Position> path;
+    std::vector<const CellInterface*> path;
     path.push_back(start);
 
     for (const Position& ref : references) {
-        if (ref == start) {
+        const CellInterface* cur = sheet_.GetCell(ref);
+        if (cur == start) {
             continue;
         }
         // Запускаем DFS с depth = 1
-        if (DFS(start, ref, 1, path, sheet_)) {
+        if (DFS(start, cur, 1, path, sheet_)) {
             return true;
         }
     }
@@ -34,8 +35,8 @@ bool Cell::CircularDependencyCheck(const Position& start,
 
 
 void Cell::InvalidateDependentsCache() {
-    std::queue<CellInterface*> q;
-    std::unordered_set<CellInterface*> visited;
+    std::queue<const CellInterface*> q;
+    std::unordered_set<const CellInterface*> visited;
 
     q.push(this);
     visited.insert(this);
@@ -46,8 +47,7 @@ void Cell::InvalidateDependentsCache() {
         if (current) {
             current->ClearCache();
 
-            for (const auto& pos : static_cast<Cell*>(current)->dependents_) {
-                CellInterface* dependent = sheet_.GetCell(pos);
+            for (const auto& dependent : static_cast<const Cell*>(current)->dependents_) {
                 if (visited.insert(dependent).second) {
                     q.push(dependent);
                 }
@@ -56,7 +56,7 @@ void Cell::InvalidateDependentsCache() {
     }
 }
 
-void Cell::Set(const Position pos, std::string text) {
+void Cell::Set(std::string text) {
     if (text.empty()) {
         impl_ = std::make_unique<EmptyImpl>();
         references_.clear();
@@ -80,7 +80,7 @@ void Cell::Set(const Position pos, std::string text) {
         // временный FormulaImpl, чтобы при броске ничего не менять
         try {
             auto temp = std::make_unique<FormulaImpl>(text, sheet_);
-            if (CircularDependencyCheck(pos, temp->GetReferencedCells())) {
+            if (CircularDependencyCheck(this, temp->GetReferencedCells())) {
                 throw CircularDependencyException("CILCULAR DEPENDENCY FOUND");
             }
             impl_ = std::move(temp);
@@ -97,7 +97,7 @@ void Cell::Set(const Position pos, std::string text) {
             if (!cell) {
                 sheet_.SetCell(p, "");
             }
-            sheet_.GetCell(p)->AddDependence(pos);
+            sheet_.GetCell(p)->AddDependence(this);
         }
 
         InvalidateDependentsCache();
@@ -124,20 +124,16 @@ std::vector<Position> Cell::GetReferencedCells() const {
     return references_;
 }
 
-void Cell::AddDependence(const Position pos) {
-    dependents_.insert(pos);
-}
-
-void Cell::RemoveDependence(const Position pos) {
-    dependents_.erase(pos);
+void Cell::AddDependence(const CellInterface* cell) {
+    dependents_.insert(cell);
 }
 
 void Cell::ClearCache() const {
     impl_->InvalidateCache();
 }
 
-void Cell::Clear(const Position pos) {
-    Set(pos, "");
+void Cell::Clear() {
+    Set("");
 }
 
 std::string Cell::GetText() const {

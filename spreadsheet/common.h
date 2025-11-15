@@ -101,9 +101,9 @@ public:
     // случае формулы - числовое значение формулы или сообщение об ошибке.
     virtual Value GetValue() const = 0;
 
-    virtual void Set(const Position pos, std::string text) = 0;
+    virtual void Set(std::string text) = 0;
 
-    virtual void Clear(const Position pos) = 0;
+    virtual void Clear() = 0;
 
     // Возвращает внутренний текст ячейки, как если бы мы начали её
     // редактирование. В случае текстовой ячейки это её текст (возможно,
@@ -111,9 +111,7 @@ public:
     virtual std::string GetText() const = 0;
 
     // Указывает зависимость ячейки от другой
-    virtual void AddDependence(const Position pos) = 0;
-
-    virtual void RemoveDependence(const Position pos) = 0;
+    virtual void AddDependence(const CellInterface* cell) = 0;
 
     virtual void ClearCache() const = 0;
 
@@ -169,10 +167,10 @@ public:
     virtual void PrintTexts(std::ostream& output) const = 0;
 };
 // Алгоритм поиска циклических зависимостей
-bool DFS(const Position& start,
-    const Position& cur,
+bool DFS(const CellInterface* start,
+    const CellInterface* cur,
     int depth,
-    std::vector<Position>& path,
+    std::vector<const CellInterface*>& path,
     const SheetInterface& sheet);
 
 // Создаёт готовую к работе пустую таблицу.

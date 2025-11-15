@@ -17,7 +17,7 @@ void Sheet::SetCell(Position pos, std::string text) {
     }
     try {
         printable_.emplace(pos, std::make_unique<Cell>(*this));
-        printable_.at(pos)->Set(pos, std::move(text));
+        printable_.at(pos)->Set(std::move(text));
     }
     catch (const FormulaException&) {
         throw;
@@ -47,7 +47,7 @@ void Sheet::ClearCell(Position pos) {
     }
 
     if (printable_.count(pos)) {
-        printable_.at(pos)->Clear(pos);
+        printable_.at(pos)->Clear();
         printable_.erase(pos);
     }
 }

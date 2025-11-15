@@ -15,17 +15,15 @@ public:
     }
     ~Cell() = default;
 
-    void Set(const Position pos, std::string text) override;
+    void Set(std::string text) override;
 
-    void Clear(const Position pos) override;
+    void Clear() override;
 
     Value GetValue() const override;
 
     std::vector<Position> GetReferencedCells() const override;
 
-    void AddDependence(const Position pos) override;
-
-    void RemoveDependence(const Position pos) override;
+    void AddDependence(const CellInterface* cell) override;
 
     void ClearCache() const override;
 
@@ -39,7 +37,7 @@ private:
     // либо текстовой, которую можно интерпретировать как операнд
     std::vector<Position> references_;
     // Ячейки, которые ссылаются на текущую
-    std::unordered_set<Position> dependents_; 
+    std::unordered_set<const CellInterface*> dependents_; 
 
     Sheet& sheet_;
 
@@ -105,5 +103,5 @@ private:
     void InvalidateDependentsCache();
 
     // Вспомогательная ф-я для поиска циклических зависимостей
-    bool CircularDependencyCheck(const Position& start, const std::vector<Position>& references) const;
+    bool CircularDependencyCheck(const Cell* start, const std::vector<Position>& references) const;
 };
